@@ -126,7 +126,7 @@ class Seq2Seq(nn.Module):
         target_len = target.shape[0]
         target_vocab_size = len(eng_vocab)
 
-        outputs = torch.zeros(target_len, batch_size, target_vocab_size)
+        outputs = torch.zeros(target_len, batch_size, target_vocab_size).to("cpu")
 
         hidden, cell = self.encoder(source)
 
@@ -155,8 +155,9 @@ learning_rate = 0.001
 batch_size = 64
 
 # model hyperparameters
-load_model = False
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+load_model = True
+device = torch.device('cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 input_size_encoder = len(ger_vocab)
 input_size_decoder = len(eng_vocab)
 output_size = len(eng_vocab)
@@ -214,55 +215,65 @@ encoder_net = Encoder(input_size_encoder, encoder_embedding_size,
 decoder_net = Decoder(input_size_decoder, decoder_embedding_size, 
                         hidden_size, output_size, num_layers, dec_dropout).to(device)
 
-model = Seq2Seq(encoder_net, decoder_net).to(device)
+model = Seq2Seq(encoder_net, decoder_net).to('cpu')
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 # pad_idx = eng_vocab.stoi['<pad>']
 criterion = nn.CrossEntropyLoss(ignore_index=3)
 
-# if load_model:
-#     load_checkpoint(torch.load('my_checkpoint.pth.ptar'), model, optimizer)
+if load_model:
+    load_checkpoint(torch.load('my_checkpoint.pth.tar'), model, optimizer)
 
-for epoch in range(num_epochs):
-    print(f'Epoch {epoch} / {num_epochs}')
+translated_example = translate_sentence(
+        model, 
+        'Der Professor ist nicht nett',
+        ger_vocab,
+        eng_vocab,
+        device,
+        max_length=50
+        )
+print(f'translated example:', translated_example)
 
-    checkpoint = {'state_dict':model.state_dict(), 'optimizer':optimizer.state_dict()}
-    save_checkpoint(checkpoint)
+# for epoch in range(num_epochs):
+#     print(f'Epoch {epoch} / {num_epochs}')
 
-    # see translation progress over time
-    # model.eval()
-    # translated_example = translate_sentence(
-    #     model, 
-    #     'zwei Personen rennen in den Laden',
-    #     ger_vocab,
-    #     eng_vocab,
-    #     device,
-    #     max_length=50
-    #     )
+#     checkpoint = {'state_dict':model.state_dict(), 'optimizer':optimizer.state_dict()}
+#     save_checkpoint(checkpoint)
+
+#     # see translation progress over time
+#     # model.eval()
+#     translated_example = translate_sentence(
+#         model, 
+#         'zwei Personen rennen in den Laden',
+#         ger_vocab,
+#         eng_vocab,
+#         device,
+#         max_length=50
+#         )
     
-    # print(f'translated example:', translated_example)
-    # model.train()
-    # ---
+#     # print(f'translated example:', translated_example)
+#     # model.train()
+#     # ---
 
-    for batch_idx, (ger_batch, eng_batch) in enumerate(train_dataloader):
-        inp_data = ger_batch.to(device)
-        target = eng_batch.to(device)
+#     for batch_idx, (ger_batch, eng_batch) in enumerate(train_dataloader):
+#         inp_data = ger_batch.to("cpu")
+#         target = eng_batch.to("cpu")
 
-        output = model(inp_data, target)
-        # output shape: (trg_len, batch_size, output_dim)
+#         output = model(inp_data, target).to("cpu")
+#         # output shape: (trg_len, batch_size, output_dim)
 
-        output = output[1:].reshape(-1, output.shape[2])
-        target = target[1:].reshape(-1)
+#         output = output[1:].reshape(-1, output.shape[2])
+#         target = target[1:].reshape(-1)
 
-        optimizer.zero_grad()
-        loss = criterion(output, target)
+#         optimizer.zero_grad()
+#         loss = criterion(output, target)
 
-        loss.backward()
+#         loss.backward()
 
-        # prevent exploding gradients
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+#         # prevent exploding gradients
+#         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
 
-        optimizer.step()
+#         optimizer.step()
 
-        writer.add_scalar('Training Loss', loss, global_step=step)
-        step += 1
+#         writer.add_scalar('Training Loss', loss, global_step=step)
+#         step += 1
